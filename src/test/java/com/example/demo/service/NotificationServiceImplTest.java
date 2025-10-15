@@ -50,7 +50,6 @@ class NotificationServiceImplTest {
     private UpdateNotificationRequest updateRequest;
 
     private final Long TEST_ID = 1L;
-    private final String LOCK_KEY = "lock:getRecentNotifications"; // 模擬鎖 Key
 
     @BeforeEach
     void setUp() {
@@ -233,6 +232,8 @@ class NotificationServiceImplTest {
     void getRecentNotifications_CacheMiss_LockAcquired_ReturnsFromDbAndCaches() {
         List<Notification> dbList = Collections.singletonList(testNotification);
 
+        // 模擬鎖 Key
+        String LOCK_KEY = "lock:getRecentNotifications";
         when(redisUtil.getLockKey("getRecentNotifications")).thenReturn(LOCK_KEY);
 
         // 1. 初始 Cache Miss
