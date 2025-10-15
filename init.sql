@@ -10,3 +10,6 @@ CREATE TABLE IF NOT EXISTS notifications (
     content TEXT NOT NULL,
     created_at DATETIME NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+
+ALTER TABLE notifications ADD COLUMN version BIGINT NOT NULL DEFAULT 0;
