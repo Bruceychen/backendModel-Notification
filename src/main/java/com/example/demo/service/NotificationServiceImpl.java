@@ -134,7 +134,7 @@ public class NotificationServiceImpl implements NotificationService {
     @Override
     @Transactional
     public Optional<Notification> updateNotification(Long id, UpdateNotificationRequest request) {
-        return notificationRepository.findById(id).map(notification -> {
+        return notificationRepository.findNotificationAndLockById(id).map(notification -> {
             notification.setSubject(request.getSubject());
             notification.setContent(request.getContent());
             Notification updatedNotification = notificationRepository.save(notification);
