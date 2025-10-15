@@ -159,7 +159,7 @@ public class NotificationServiceImpl implements NotificationService {
     @Transactional
     public boolean deleteNotification(Long id) {
         // 1. 從 DB 讀取 (Read)
-        if (!notificationRepository.existsById(id)) {
+        if (notificationRepository.findNotificationAndLockById(id).isEmpty()) {
             return false;
         }
 
