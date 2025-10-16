@@ -148,6 +148,8 @@ public class NotificationServiceImpl implements NotificationService {
 
                     // B. 清除單一快取，避免雙寫競爭造成髒讀
                     redisUtil.deleteNotification(id);
+
+                    // TODO C. 理論上修改後應該也要 push 到 MQ，否則修改後的結果只有在我方系統上可見
                 }
             });
 
@@ -175,6 +177,8 @@ public class NotificationServiceImpl implements NotificationService {
 
                 // B. 清除單一快取，避免雙寫競爭
                 redisUtil.deleteNotification(id);
+
+                // TODO C. 理論上修改後應該也要 push 到 MQ，否則修改後的結果只有在我方系統上可見
             }
         });
 
