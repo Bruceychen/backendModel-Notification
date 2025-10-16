@@ -2,8 +2,8 @@ package com.example.demo.controller;
 
 import com.example.demo.dto.NotificationRequest;
 import com.example.demo.dto.UpdateNotificationRequest;
+import com.example.demo.enums.NotificationType;
 import com.example.demo.model.Notification;
-import com.example.demo.model.NotificationType;
 import com.example.demo.service.NotificationService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;

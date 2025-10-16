@@ -1,6 +1,7 @@
 package com.example.demo.dto;
 
-import com.example.demo.model.NotificationType;
+import com.example.demo.enums.NotificationMessageType;
+import com.example.demo.enums.NotificationType;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -17,7 +18,8 @@ public class NotificationMessage implements Serializable {
     private static final long serialVersionUID = 1L;
 
     private Long id;
-    private NotificationType type;
+    private NotificationType notificationType;
+    private NotificationMessageType notificationMessageType;
     private String recipient;
     private String subject;
     private String content;

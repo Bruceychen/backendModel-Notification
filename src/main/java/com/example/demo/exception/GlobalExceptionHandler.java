@@ -21,7 +21,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<Map<String, String>> handleIllegalArgumentException(IllegalArgumentException ex) {
         // Check if the exception message is related to NotificationType enum
-        if (ex.getMessage() != null && ex.getMessage().contains("No enum constant com.example.demo.model.NotificationType.")) {
+        if (ex.getMessage() != null && ex.getMessage().contains("No enum constant com.example.demo.enums.NotificationType.")) {
             Map<String, String> errorResponse = new HashMap<>();
             errorResponse.put("message", "unsupported type");
             return new ResponseEntity<>(errorResponse, HttpStatus.BAD_REQUEST);

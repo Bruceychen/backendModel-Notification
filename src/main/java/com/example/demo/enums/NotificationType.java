@@ -1,4 +1,4 @@
-package com.example.demo.model;
+package com.example.demo.enums;
 
 import com.example.demo.exception.InvalidNotificationTypeException;
 

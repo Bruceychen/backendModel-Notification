@@ -3,8 +3,9 @@ package com.example.demo.service;
 import com.example.demo.dto.NotificationMessage;
 import com.example.demo.dto.NotificationRequest;
 import com.example.demo.dto.UpdateNotificationRequest;
+import com.example.demo.enums.NotificationMessageType;
+import com.example.demo.enums.NotificationType;
 import com.example.demo.model.Notification;
-import com.example.demo.model.NotificationType;
 import com.example.demo.mq.NotificationProducer;
 import com.example.demo.repository.NotificationRepository;
 import com.example.demo.util.RedisUtil;
@@ -47,7 +48,7 @@ public class NotificationServiceImpl implements NotificationService {
             @Override
             public void afterCommit() {
                 // A. Push to RocketMQ (應在 DB 成功後發送，確保消息有效)
-                notificationProducer.sendNotification(toMessage(savedNotification));
+                notificationProducer.sendNotification(toMessage(savedNotification, NotificationMessageType.CREATE));
 
                 // B. 更新單一快取 (使用 SET 進行更新，避免下次讀取穿透)
                 redisUtil.cacheNotification(savedNotification);
@@ -149,7 +150,8 @@ public class NotificationServiceImpl implements NotificationService {
                     // B. 清除單一快取，避免雙寫競爭造成髒讀
                     redisUtil.deleteNotification(id);
 
-                    // TODO C. 理論上修改後應該也要 push 到 MQ，否則修改後的結果只有在我方系統上可見
+                    // C. 雖然 MD 說明沒有要求，但理論上修改後應該也要 push 到 MQ，否則修改後的結果只有在我方系統上可見
+                    notificationProducer.sendNotification(toMessage(updatedNotification, NotificationMessageType.UPDATE));
                 }
             });
 
@@ -161,12 +163,13 @@ public class NotificationServiceImpl implements NotificationService {
     @Transactional
     public boolean deleteNotification(Long id) {
         // 1. 從 DB 讀取 (Read)
-        if (notificationRepository.findNotificationAndLockById(id).isEmpty()) {
+        Optional<Notification> dbNotification = notificationRepository.findNotificationAndLockById(id);
+        if (dbNotification.isEmpty()) {
             return false;
         }
 
         // 2. 執行 DB 刪除
-        notificationRepository.deleteById(id);
+//        notificationRepository.deleteById(id);
 
         // 3. 確認 DB 提交成功後清理快取
         TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
@@ -178,17 +181,19 @@ public class NotificationServiceImpl implements NotificationService {
                 // B. 清除單一快取，避免雙寫競爭
                 redisUtil.deleteNotification(id);
 
-                // TODO C. 理論上修改後應該也要 push 到 MQ，否則修改後的結果只有在我方系統上可見
+                // C. 雖然 MD 說明沒有要求，但理論上修改後應該也要 push 到 MQ，否則修改後的結果只有在我方系統上可見
+                notificationProducer.sendNotification(toMessage(dbNotification.get(), NotificationMessageType.DELETE));
             }
         });
 
         return true;
     }
 
-    private NotificationMessage toMessage(Notification notification) {
+    private NotificationMessage toMessage(Notification notification, NotificationMessageType messageType) {
         return NotificationMessage.builder()
                 .id(notification.getId())
-                .type(notification.getType())
+                .notificationType(notification.getType())
+                .notificationMessageType(messageType)
                 .recipient(notification.getRecipient())
                 .subject(notification.getSubject())
                 .content(notification.getContent())

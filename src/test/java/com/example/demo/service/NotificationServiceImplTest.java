@@ -3,8 +3,8 @@ package com.example.demo.service;
 
 import com.example.demo.dto.NotificationRequest;
 import com.example.demo.dto.UpdateNotificationRequest;
+import com.example.demo.enums.NotificationType;
 import com.example.demo.model.Notification;
-import com.example.demo.model.NotificationType;
 import com.example.demo.mq.NotificationProducer;
 import com.example.demo.repository.NotificationRepository;
 import com.example.demo.util.RedisUtil;

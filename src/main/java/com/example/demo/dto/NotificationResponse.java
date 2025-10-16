@@ -1,7 +1,7 @@
 package com.example.demo.dto;
 
+import com.example.demo.enums.NotificationType;
 import com.example.demo.model.Notification;
-import com.example.demo.model.NotificationType;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
