@@ -1,8 +1,9 @@
 package com.example.demo.service;
 
-
+import com.example.demo.dto.NotificationMessage;
 import com.example.demo.dto.NotificationRequest;
 import com.example.demo.dto.UpdateNotificationRequest;
+import com.example.demo.enums.NotificationMessageType;
 import com.example.demo.enums.NotificationType;
 import com.example.demo.model.Notification;
 import com.example.demo.mq.NotificationProducer;
@@ -10,6 +11,7 @@ import com.example.demo.repository.NotificationRepository;
 import com.example.demo.util.RedisUtil;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.*;
@@ -23,10 +25,13 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
+@DisplayName("NotificationServiceImpl 測試")
 class NotificationServiceImplTest {
 
     @InjectMocks
@@ -41,217 +46,312 @@ class NotificationServiceImplTest {
     @Mock
     private RedisUtil redisUtil;
 
-    // 用於捕獲註冊到 Spring 事務的同步對象
     @Captor
     private ArgumentCaptor<TransactionSynchronization> synchronizationCaptor;
 
-    private Notification testNotification;
-    private NotificationRequest testRequest;
-    private UpdateNotificationRequest updateRequest;
+    @Captor
+    private ArgumentCaptor<Notification> notificationCaptor;
+
+    @Captor
+    private ArgumentCaptor<NotificationMessage> messageCaptor;
 
     private final Long TEST_ID = 1L;
+    private Notification testNotification;
 
     @BeforeEach
     void setUp() {
-        // 測試數據設置
         testNotification = new Notification();
         testNotification.setId(TEST_ID);
+        testNotification.setRecipient("user123");
         testNotification.setSubject("Test Subject");
         testNotification.setContent("Test Content");
         testNotification.setType(NotificationType.EMAIL);
-
-        testRequest = NotificationRequest.builder()
-                .recipient("user123")
-                .subject("New Alert")
-                .content("System Update")
-                .type(NotificationType.EMAIL)
-                .build();
-
-        updateRequest = new UpdateNotificationRequest();
-        updateRequest.setSubject("Updated Subject");
-        updateRequest.setContent("Updated Content");
-
     }
 
-    @Test
-    @DisplayName("Create: 成功創建通知，並在提交後執行快取和MQ操作")
-    void createNotification_Success_ExecutesAfterCommit() {
-        // 模擬 DB 行為
-        when(notificationRepository.save(any(Notification.class))).thenReturn(testNotification);
+    @Nested
+    @DisplayName("創建通知 (createNotification)")
+    class CreateNotificationTests {
 
-        // 模擬 Spring 事務同步管理器
-        try (MockedStatic<TransactionSynchronizationManager> mockedStatic = mockStatic(TransactionSynchronizationManager.class)) {
-            // 執行 SUT (System Under Test)
-            Notification result = notificationService.createNotification(testRequest);
+        private NotificationRequest testRequest;
 
-            // 驗證 DB 保存被調用
-            verify(notificationRepository, times(1)).save(any(Notification.class));
+        @BeforeEach
+        void setUp() {
+            testRequest = NotificationRequest.builder()
+                    .recipient("user123")
+                    .subject("New Alert")
+                    .content("System Update")
+                    .type(NotificationType.EMAIL)
+                    .build();
+        }
 
-            // 捕獲註冊的同步對象
-            mockedStatic.verify(() -> TransactionSynchronizationManager.registerSynchronization(synchronizationCaptor.capture()));
-            TransactionSynchronization synchronization = synchronizationCaptor.getValue();
+        @Test
+        @DisplayName("成功創建通知 -> 應保存到DB，並在事務提交後執行快取和MQ操作")
+        void givenValidRequest_whenCreateNotification_thenSaveAndExecuteAfterCommitActions() {
+            // Given
+            when(notificationRepository.save(any(Notification.class))).thenReturn(testNotification);
 
-            // 模擬事務成功提交 (手動調用 afterCommit)
-            synchronization.afterCommit();
+            try (MockedStatic<TransactionSynchronizationManager> mockedManager = mockStatic(TransactionSynchronizationManager.class)) {
+                // Arrange: Mock transaction as active
+                mockedManager.when(TransactionSynchronizationManager::isSynchronizationActive).thenReturn(true);
+                mockedManager.when(TransactionSynchronizationManager::isActualTransactionActive).thenReturn(true);
 
-            // 驗證 afterCommit 內的邏輯被調用
-            verify(notificationProducer, times(1)).sendNotification(any());
-            verify(redisUtil, times(1)).cacheNotification(testNotification);
-            verify(redisUtil, times(1)).clearRecentList();
+                // When
+                Notification result = notificationService.createNotification(testRequest);
 
-            // 驗證結果
-            assertEquals(testNotification.getId(), result.getId());
+                // Then: Assertions on the result and DB interaction
+                assertThat(result).isNotNull();
+                assertThat(result.getId()).isEqualTo(TEST_ID);
+                verify(notificationRepository).save(notificationCaptor.capture());
+                assertThat(notificationCaptor.getValue().getRecipient()).isEqualTo(testRequest.getRecipient());
+
+                // And: Verify synchronization was registered and capture the callback
+                mockedManager.verify(() -> TransactionSynchronizationManager.registerSynchronization(synchronizationCaptor.capture()));
+
+                // Act: Manually trigger the afterCommit callback
+                synchronizationCaptor.getValue().afterCommit();
+
+                // Assert: Verify the afterCommit logic was executed
+                verify(redisUtil).cacheNotification(testNotification);
+                verify(redisUtil).clearRecentList();
+                verify(notificationProducer).sendNotification(messageCaptor.capture());
+                assertThat(messageCaptor.getValue().getNotificationMessageType()).isEqualTo(NotificationMessageType.CREATE);
+            }
+        }
+
+        @Test
+        @DisplayName("當沒有活躍事務時 -> 應拋出異常")
+        void givenNoActiveTransaction_whenCreateNotification_thenThrowException() {
+            // Given
+            when(notificationRepository.save(any(Notification.class))).thenReturn(testNotification);
+
+            try (MockedStatic<TransactionSynchronizationManager> mockedManager = mockStatic(TransactionSynchronizationManager.class)) {
+                // Arrange: Mock transaction as inactive, which should cause an exception on registration
+                mockedManager.when(TransactionSynchronizationManager::isSynchronizationActive).thenReturn(false);
+                mockedManager.when(TransactionSynchronizationManager::isActualTransactionActive).thenReturn(false);
+                mockedManager.when(() -> TransactionSynchronizationManager.registerSynchronization(any(TransactionSynchronization.class)))
+                             .thenThrow(new IllegalStateException("Transaction synchronization is not active"));
+
+                // When & Then: Assert that an exception is thrown
+                assertThrows(IllegalStateException.class, () -> notificationService.createNotification(testRequest));
+
+                // And: Verify DB save was still called, but no after-commit actions occurred
+                verify(notificationRepository).save(any(Notification.class));
+                verifyNoInteractions(notificationProducer, redisUtil);
+            }
         }
     }
 
+    @Nested
+    @DisplayName("查詢單一通知 (getNotificationById)")
+    class GetNotificationByIdTests {
 
-    @Test
-    @DisplayName("GetById: 快取命中，不查詢DB")
-    void getNotificationById_CacheHit_ReturnsFromCache() {
-        when(redisUtil.findNotificationById(TEST_ID)).thenReturn(Optional.of(testNotification));
+        @Test
+        @DisplayName("快取命中 -> 應從快取返回且不查詢DB")
+        void givenCacheHit_whenGetNotificationById_thenReturnFromCache() {
+            when(redisUtil.findNotificationById(TEST_ID)).thenReturn(Optional.of(testNotification));
+            Optional<Notification> result = notificationService.getNotificationById(TEST_ID);
+            assertThat(result).isPresent().contains(testNotification);
+            verify(notificationRepository, never()).findById(anyLong());
+            verify(redisUtil, never()).cacheNotification(any());
+        }
 
-        Optional<Notification> result = notificationService.getNotificationById(TEST_ID);
+        @Test
+        @DisplayName("快取未命中但DB命中 -> 應從DB返回並回填快取 (Read-Through)")
+        void givenCacheMissAndDbHit_whenGetNotificationById_thenReturnFromDbAndCache() {
+            when(redisUtil.findNotificationById(TEST_ID)).thenReturn(Optional.empty());
+            when(notificationRepository.findById(TEST_ID)).thenReturn(Optional.of(testNotification));
+            Optional<Notification> result = notificationService.getNotificationById(TEST_ID);
+            assertThat(result).isPresent().contains(testNotification);
+            verify(notificationRepository).findById(TEST_ID);
+            verify(redisUtil).cacheNotification(testNotification);
+        }
 
-        assertTrue(result.isPresent());
-        assertEquals(TEST_ID, result.get().getId());
-
-        // 驗證：DB 查詢和快取回填未被調用
-        verify(notificationRepository, never()).findById(anyLong());
-        verify(redisUtil, never()).cacheNotification(any());
+        @Test
+        @DisplayName("快取和DB均未命中 -> 應返回空Optional")
+        void givenCacheAndDbMiss_whenGetNotificationById_thenReturnEmpty() {
+            when(redisUtil.findNotificationById(TEST_ID)).thenReturn(Optional.empty());
+            when(notificationRepository.findById(TEST_ID)).thenReturn(Optional.empty());
+            Optional<Notification> result = notificationService.getNotificationById(TEST_ID);
+            assertThat(result).isNotPresent();
+            verify(redisUtil, never()).cacheNotification(any());
+        }
     }
 
-    @Test
-    @DisplayName("GetById: 快取Miss但DB命中，從DB返回並回填快取")
-    void getNotificationById_CacheMissDbHit_ReturnsFromDbAndCaches() {
-        when(redisUtil.findNotificationById(TEST_ID)).thenReturn(Optional.empty());
-        when(notificationRepository.findById(TEST_ID)).thenReturn(Optional.of(testNotification));
+    @Nested
+    @DisplayName("更新通知 (updateNotification)")
+    class UpdateNotificationTests {
 
-        Optional<Notification> result = notificationService.getNotificationById(TEST_ID);
+        private UpdateNotificationRequest updateRequest;
 
-        assertTrue(result.isPresent());
+        @BeforeEach
+        void setup() {
+            updateRequest = new UpdateNotificationRequest();
+            updateRequest.setSubject("Updated Subject");
+            updateRequest.setContent("Updated Content");
+        }
 
-        // 驗證：DB 查詢被調用，且快取回填被調用 (Read-Repair)
-        verify(notificationRepository, times(1)).findById(TEST_ID);
-        verify(redisUtil, times(1)).cacheNotification(testNotification);
-    }
+        @Test
+        @DisplayName("成功更新通知 -> 應更新DB並在事務提交後清除快取和發送MQ")
+        void givenExistingId_whenUpdateNotification_thenUpdateAndClearCacheAfterCommit() {
+            // Given
+            when(notificationRepository.findNotificationAndLockById(TEST_ID)).thenReturn(Optional.of(testNotification));
+            when(notificationRepository.save(any(Notification.class))).thenAnswer(inv -> inv.getArgument(0));
 
+            try (MockedStatic<TransactionSynchronizationManager> mockedManager = mockStatic(TransactionSynchronizationManager.class)) {
+                // Arrange
+                mockedManager.when(TransactionSynchronizationManager::isSynchronizationActive).thenReturn(true);
+                mockedManager.when(TransactionSynchronizationManager::isActualTransactionActive).thenReturn(true);
 
-    @Test
-    @DisplayName("Update: 成功更新，並在提交後執行快取清除操作")
-    void updateNotification_Success_ExecutesAfterCommit() {
-        // 模擬 DB 行為
-        Notification oldNotification = new Notification();
-        oldNotification.setId(TEST_ID);
+                // When
+                Optional<Notification> result = notificationService.updateNotification(TEST_ID, updateRequest);
 
-        Notification updatedNotification = new Notification();
-        updatedNotification.setId(TEST_ID);
-        updatedNotification.setSubject(updateRequest.getSubject()); // 模擬更新後的內容
+                // Then
+                assertThat(result).isPresent();
+                verify(notificationRepository).findNotificationAndLockById(TEST_ID);
+                verify(notificationRepository).save(any(Notification.class));
 
-        when(notificationRepository.findById(TEST_ID)).thenReturn(Optional.of(oldNotification));
-        when(notificationRepository.save(any(Notification.class))).thenReturn(updatedNotification);
+                // And: Verify and trigger afterCommit
+                mockedManager.verify(() -> TransactionSynchronizationManager.registerSynchronization(synchronizationCaptor.capture()));
+                synchronizationCaptor.getValue().afterCommit();
 
-        // 模擬 Spring 事務同步管理器
-        try (MockedStatic<TransactionSynchronizationManager> mockedStatic = mockStatic(TransactionSynchronizationManager.class)) {
-            // 執行 SUT
+                // Assert: Verify afterCommit logic
+                verify(redisUtil).clearRecentList();
+                verify(redisUtil).deleteNotification(TEST_ID);
+                verify(notificationProducer).sendNotification(messageCaptor.capture());
+                assertThat(messageCaptor.getValue().getNotificationMessageType()).isEqualTo(NotificationMessageType.UPDATE);
+            }
+        }
+
+        @Test
+        @DisplayName("當通知ID不存在時 -> 應返回空Optional且不執行任何操作")
+        void givenNonExistingId_whenUpdateNotification_thenReturnEmpty() {
+            when(notificationRepository.findNotificationAndLockById(TEST_ID)).thenReturn(Optional.empty());
             Optional<Notification> result = notificationService.updateNotification(TEST_ID, updateRequest);
-
-            // 驗證 DB 查詢和保存
-            assertTrue(result.isPresent());
-            verify(notificationRepository, times(1)).findById(TEST_ID);
-            verify(notificationRepository, times(1)).save(oldNotification); // 驗證傳入的是舊對象但內容已修改
-
-            // 捕獲註冊的同步對象
-            mockedStatic.verify(() -> TransactionSynchronizationManager.registerSynchronization(synchronizationCaptor.capture()));
-            TransactionSynchronization synchronization = synchronizationCaptor.getValue();
-
-            // 模擬事務成功提交 (手動調用 afterCommit)
-            synchronization.afterCommit();
-
-            // 驗證 afterCommit 內的邏輯被調用
-            verify(redisUtil, times(1)).clearRecentList(); // 驗證 Recent List 被清除
-            verify(redisUtil, times(1)).deleteNotification(TEST_ID); // 驗證單一快取被清除
+            assertThat(result).isNotPresent();
+            verify(notificationRepository, never()).save(any());
+            verifyNoInteractions(notificationProducer);
+            verify(redisUtil, never()).clearRecentList();
+            verify(redisUtil, never()).deleteNotification(anyLong());
         }
     }
 
-    @Test
-    @DisplayName("Delete: ID存在，成功刪除並在提交後清除快取")
-    void deleteNotification_IdExists_ExecutesAfterCommit() {
-        when(notificationRepository.existsById(TEST_ID)).thenReturn(true);
+    @Nested
+    @DisplayName("刪除通知 (deleteNotification)")
+    class DeleteNotificationTests {
 
-        try (MockedStatic<TransactionSynchronizationManager> mockedStatic = mockStatic(TransactionSynchronizationManager.class)) {
-            // 執行 SUT
+        @Test
+        @DisplayName("成功刪除通知 -> 應從DB刪除並在事務提交後清除快取和發送MQ")
+        void givenExistingId_whenDeleteNotification_thenDeleteAndClearCacheAfterCommit() {
+            // Given
+            when(notificationRepository.findNotificationAndLockById(TEST_ID)).thenReturn(Optional.of(testNotification));
+
+            try (MockedStatic<TransactionSynchronizationManager> mockedManager = mockStatic(TransactionSynchronizationManager.class)) {
+                // Arrange
+                mockedManager.when(TransactionSynchronizationManager::isSynchronizationActive).thenReturn(true);
+                mockedManager.when(TransactionSynchronizationManager::isActualTransactionActive).thenReturn(true);
+
+                // When
+                boolean result = notificationService.deleteNotification(TEST_ID);
+
+                // Then
+                assertThat(result).isTrue();
+                verify(notificationRepository).deleteById(TEST_ID);
+
+                // And: Verify and trigger afterCommit
+                mockedManager.verify(() -> TransactionSynchronizationManager.registerSynchronization(synchronizationCaptor.capture()));
+                synchronizationCaptor.getValue().afterCommit();
+
+                // Assert: Verify afterCommit logic
+                verify(redisUtil).clearRecentList();
+                verify(redisUtil).deleteNotification(TEST_ID);
+                verify(notificationProducer).sendNotification(messageCaptor.capture());
+                assertThat(messageCaptor.getValue().getNotificationMessageType()).isEqualTo(NotificationMessageType.DELETE);
+            }
+        }
+
+        @Test
+        @DisplayName("當通知ID不存在時 -> 應返回false且不執行任何操作")
+        void givenNonExistingId_whenDeleteNotification_thenReturnFalse() {
+            when(notificationRepository.findNotificationAndLockById(TEST_ID)).thenReturn(Optional.empty());
             boolean result = notificationService.deleteNotification(TEST_ID);
-
-            // 驗證 DB 刪除被調用
-            assertTrue(result);
-            verify(notificationRepository, times(1)).deleteById(TEST_ID);
-
-            // 捕獲註冊的同步對象
-            mockedStatic.verify(() -> TransactionSynchronizationManager.registerSynchronization(synchronizationCaptor.capture()));
-            TransactionSynchronization synchronization = synchronizationCaptor.getValue();
-
-            // 模擬事務成功提交 (手動調用 afterCommit)
-            synchronization.afterCommit();
-
-            // 驗證 afterCommit 內的邏輯被調用
-            verify(redisUtil, times(1)).clearRecentList();
-            verify(redisUtil, times(1)).deleteNotification(TEST_ID);
+            assertThat(result).isFalse();
+            verify(notificationRepository, never()).deleteById(anyLong());
+            verifyNoInteractions(notificationProducer);
         }
     }
 
-    @Test
-    @DisplayName("Delete: ID不存在，返回false且不執行DB刪除")
-    void deleteNotification_IdNotExists_ReturnsFalse() {
-        when(notificationRepository.existsById(TEST_ID)).thenReturn(false);
+    @Nested
+    @DisplayName("查詢最近通知 (getRecentNotifications) - 快取防護")
+    class GetRecentNotificationsTests {
+        private final String LOCK_KEY = "lock:getRecentNotifications";
+        private final List<Notification> notificationList = Collections.singletonList(testNotification);
 
-        boolean result = notificationService.deleteNotification(TEST_ID);
+        @BeforeEach
+        void setup() {
+            lenient().when(redisUtil.getLockKey("getRecentNotifications")).thenReturn(LOCK_KEY);
+        }
 
-        assertFalse(result);
-        verify(notificationRepository, never()).deleteById(anyLong());
-        // 驗證沒有嘗試註冊 afterCommit
-        verifyNoInteractions(redisUtil);
+        @Test
+        @DisplayName("快取命中 -> 應直接從快取返回")
+        void givenCacheHit_whenGetRecentNotifications_thenReturnFromCache() {
+            when(redisUtil.findRecentNotifications()).thenReturn(notificationList);
+            List<Notification> result = notificationService.getRecentNotifications();
+            assertThat(result).isEqualTo(notificationList);
+            verify(notificationRepository, never()).findTop10ByOrderByCreatedAtDesc(any());
+            verify(redisUtil, never()).setnxWithExpiration(anyString(), anyString(), any());
+        }
+
+        @Test
+        @DisplayName("快取未命中，成功獲取鎖 -> 應從DB查詢並回填快取 (雙重檢查鎖)")
+        void givenCacheMissAndLockAcquired_whenGetRecentNotifications_thenFetchFromDbAndCache() {
+            when(redisUtil.findRecentNotifications()).thenReturn(Collections.emptyList());
+            when(redisUtil.setnxWithExpiration(eq(LOCK_KEY), anyString(), any(Duration.class))).thenReturn(true);
+            when(notificationRepository.findTop10ByOrderByCreatedAtDesc(any(PageRequest.class))).thenReturn(notificationList);
+
+            List<Notification> result = notificationService.getRecentNotifications();
+
+            assertThat(result).isEqualTo(notificationList);
+            InOrder inOrder = inOrder(redisUtil, notificationRepository);
+            inOrder.verify(redisUtil).findRecentNotifications(); // 第一次檢查
+            inOrder.verify(redisUtil).setnxWithExpiration(eq(LOCK_KEY), anyString(), any(Duration.class)); // 獲取鎖
+            inOrder.verify(redisUtil).findRecentNotifications(); // 第二次檢查
+            inOrder.verify(notificationRepository).findTop10ByOrderByCreatedAtDesc(any(PageRequest.class)); // 查DB
+            inOrder.verify(redisUtil).populateRecentList(notificationList); // 回填快取
+            inOrder.verify(redisUtil).deleteKey(LOCK_KEY); // 釋放鎖
+        }
+
+        @Test
+        @DisplayName("雙重檢查鎖：在獲取鎖後，發現快取已被其他線程填充 -> 應直接返回快取數據")
+        void givenLockAcquiredButCachePopulated_whenGetRecentNotifications_thenReturnFromCache() {
+            when(redisUtil.findRecentNotifications())
+                    .thenReturn(Collections.emptyList()) // 第一次檢查 miss
+                    .thenReturn(notificationList);       // 第二次檢查 hit
+            when(redisUtil.setnxWithExpiration(eq(LOCK_KEY), anyString(), any(Duration.class))).thenReturn(true);
+
+            List<Notification> result = notificationService.getRecentNotifications();
+
+            assertThat(result).isEqualTo(notificationList);
+            verify(notificationRepository, never()).findTop10ByOrderByCreatedAtDesc(any());
+            verify(redisUtil, never()).populateRecentList(any());
+            verify(redisUtil).deleteKey(LOCK_KEY); // 仍需釋放鎖
+        }
+
+        @Test
+        @DisplayName("快取未命中，獲取鎖失敗 -> 應等待後重試並從快取獲取數據")
+        void givenCacheMissAndLockFailed_whenGetRecentNotifications_thenWaitAndRetry() {
+            when(redisUtil.setnxWithExpiration(eq(LOCK_KEY), anyString(), any(Duration.class))).thenReturn(false);
+            when(redisUtil.findRecentNotifications())
+                    .thenReturn(Collections.emptyList()) // 第一次檢查 miss
+                    .thenReturn(notificationList);       // 重試後檢查 hit
+
+            List<Notification> result = notificationService.getRecentNotifications();
+
+            assertThat(result).isEqualTo(notificationList);
+            verify(redisUtil, times(1)).setnxWithExpiration(eq(LOCK_KEY), anyString(), any(Duration.class));
+            verify(redisUtil, times(2)).findRecentNotifications(); // 初始一次，重試一次
+            verify(notificationRepository, never()).findTop10ByOrderByCreatedAtDesc(any());
+            verify(redisUtil, never()).populateRecentList(any());
+            verify(redisUtil, never()).deleteKey(LOCK_KEY);
+        }
     }
-
-
-    @Test
-    @DisplayName("GetRecent: 快取命中，直接返回")
-    void getRecentNotifications_CacheHit_ReturnsFromCache() {
-        List<Notification> cachedList = Collections.singletonList(testNotification);
-        when(redisUtil.findRecentNotifications()).thenReturn(cachedList);
-
-        List<Notification> result = notificationService.getRecentNotifications();
-
-        assertFalse(result.isEmpty());
-        // 驗證：沒有任何鎖操作、DB查詢或回填
-        verify(redisUtil, never()).setnxWithExpiration(anyString(), anyString(), any(Duration.class));
-        verify(notificationRepository, never()).findTop10ByOrderByCreatedAtDesc(any(PageRequest.class));
-    }
-
-    @Test
-    @DisplayName("GetRecent: 快取Miss，獲取鎖成功，從DB獲取並回填快取")
-    void getRecentNotifications_CacheMiss_LockAcquired_ReturnsFromDbAndCaches() {
-        List<Notification> dbList = Collections.singletonList(testNotification);
-
-        // 模擬鎖 Key
-        String LOCK_KEY = "lock:getRecentNotifications";
-        when(redisUtil.getLockKey("getRecentNotifications")).thenReturn(LOCK_KEY);
-
-        // 1. 初始 Cache Miss
-        when(redisUtil.findRecentNotifications()).thenReturn(Collections.emptyList());
-        // 2. 鎖獲取成功
-        when(redisUtil.setnxWithExpiration(eq(LOCK_KEY), eq("locked"), any(Duration.class))).thenReturn(true);
-        // 3. 雙重檢查後 Cache Miss (返回空)
-        // 4. DB 查詢成功
-        when(notificationRepository.findTop10ByOrderByCreatedAtDesc(any(PageRequest.class))).thenReturn(dbList);
-
-        List<Notification> result = notificationService.getRecentNotifications();
-
-        // 驗證流程
-        assertTrue(result.containsAll(dbList));
-        verify(redisUtil, times(1)).setnxWithExpiration(eq(LOCK_KEY), eq("locked"), any(Duration.class));
-        verify(notificationRepository, times(1)).findTop10ByOrderByCreatedAtDesc(any(PageRequest.class));
-        verify(redisUtil, times(1)).populateRecentList(dbList); // 驗證回填
-        verify(redisUtil, times(1)).deleteKey(LOCK_KEY); // 驗證鎖被釋放
-    }
-
 }

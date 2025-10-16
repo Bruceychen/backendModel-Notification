@@ -169,7 +169,7 @@ public class NotificationServiceImpl implements NotificationService {
         }
 
         // 2. 執行 DB 刪除
-//        notificationRepository.deleteById(id);
+        notificationRepository.deleteById(id);
 
         // 3. 確認 DB 提交成功後清理快取
         TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
