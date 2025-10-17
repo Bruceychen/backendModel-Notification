@@ -2,12 +2,14 @@ package com.example.demo.enums;
 
 import com.example.demo.exception.InvalidNotificationTypeException;
 
-public enum NotificationType {
-    EMAIL,
-    SMS;
+public enum NotificationMessageType {
+    CREATE,
+    UPDATE,
+    DELETE,
+    ;
 
-    public static NotificationType fromString(String type) {
-        for (NotificationType notificationType : NotificationType.values()) {
+    public static NotificationMessageType fromString(String type) {
+        for (NotificationMessageType notificationType : NotificationMessageType.values()) {
             if (notificationType.name().equalsIgnoreCase(type)) {
                 return notificationType;
             }

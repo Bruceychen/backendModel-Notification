@@ -1,6 +1,5 @@
 package com.example.demo.controller;
 
-
 import com.example.demo.dto.NotificationRequest;
 import com.example.demo.dto.NotificationResponse;
 import com.example.demo.dto.UpdateNotificationRequest;
@@ -23,6 +22,11 @@ public class NotificationController {
 
     private final NotificationService notificationService;
 
+    @PostMapping
+    public ResponseEntity<NotificationResponse> createNotification(@RequestBody NotificationRequest request) {
+        Notifications createdNotification = notificationService.createNotification(request);
+        return new ResponseEntity<>(NotificationResponse.fromEntity(createdNotification), HttpStatus.CREATED);
+    }
     @GetMapping("/{id}")
     public ResponseEntity<?> getNotificationById(@PathVariable Long id){
         Optional<Notifications> notifications = notificationService.getNotificationById(id);
@@ -33,11 +37,6 @@ public class NotificationController {
             errorResponse.put("message", "data is not existed");
             return new ResponseEntity<>(errorResponse, HttpStatus.NOT_FOUND);
         }
-    }
-
-    @PostMapping
-    public ResponseEntity<NotificationResponse> createNotification(@RequestBody NotificationRequest request) {
-        return null;
     }
 
     @GetMapping("/recent")
