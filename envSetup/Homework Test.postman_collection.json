@@ -1,0 +1,150 @@
+{
+	"info": {
+		"_postman_id": "a9d88f53-b944-4ff9-8ec5-19c9d7e9c9df",
+		"name": "Homework Test",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_exporter_id": "2350675"
+	},
+	"item": [
+		{
+			"name": "Create Notification",
+			"request": {
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "{\r\n    \"type\": \"SMS\",\r\n    \"recipient\": \"user@example.com\",\r\n    \"subject\": \"Test SMS Subject 5\",\r\n    \"content\": \"This is a test SMS notification.\"\r\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "http://localhost:8090/notifications",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "8090",
+					"path": [
+						"notifications"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Get Notification",
+			"protocolProfileBehavior": {
+				"disableBodyPruning": true
+			},
+			"request": {
+				"method": "GET",
+				"header": [],
+				"body": {
+					"mode": "urlencoded",
+					"urlencoded": []
+				},
+				"url": {
+					"raw": "http://localhost:8090/notifications/9",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "8090",
+					"path": [
+						"notifications",
+						"9"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Get Recent",
+			"protocolProfileBehavior": {
+				"disableBodyPruning": true
+			},
+			"request": {
+				"method": "GET",
+				"header": [],
+				"body": {
+					"mode": "urlencoded",
+					"urlencoded": []
+				},
+				"url": {
+					"raw": "http://localhost:8090/notifications/recent",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "8090",
+					"path": [
+						"notifications",
+						"recent"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Update Notification",
+			"request": {
+				"method": "PUT",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "{\r\n    \"subject\": \"Test EMAIL Fix Subject\",\r\n    \"content\": \"This is a test EMAIL Fix notification.\"\r\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "http://localhost:8090/notifications/9",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "8090",
+					"path": [
+						"notifications",
+						"9"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Delete Notification",
+			"request": {
+				"method": "DELETE",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "http://localhost:8090/notifications/8",
+					"protocol": "http",
+					"host": [
+						"localhost"
+					],
+					"port": "8090",
+					"path": [
+						"notifications",
+						"8"
+					]
+				}
+			},
+			"response": []
+		}
+	]
+}
