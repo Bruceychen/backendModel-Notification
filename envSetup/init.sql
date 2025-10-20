@@ -1,0 +1,15 @@
+CREATE DATABASE IF NOT EXISTS taskdb;
+
+USE taskdb;
+
+CREATE TABLE IF NOT EXISTS notifications (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    type VARCHAR(255) NOT NULL,
+    recipient VARCHAR(255) NOT NULL,
+    subject VARCHAR(255),
+    content TEXT NOT NULL,
+    created_at DATETIME NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+
+ALTER TABLE notifications ADD COLUMN version BIGINT NOT NULL DEFAULT 0;
