@@ -1,7 +1,8 @@
 
 # 📬 Notification Service – Backend Homework
 
-This is a technical assignment for backend engineer candidates. You are expected to build a RESTful notification service using **Spring Boot**, integrating **MySQL**, **Redis**, and **RocketMQ**.
+fork from:
+This is a tech test for build a RESTful notification service using **Spring Boot**, integrating **MySQL**, **Redis**, and **RocketMQ**.
 
 ---
 
