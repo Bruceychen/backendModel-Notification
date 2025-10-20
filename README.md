@@ -1,7 +1,7 @@
 
 # 📬 Notification Service – Backend Homework
 
-fork from:
+fork from: https://github.com/James781004/homework-backend-1
 This is a tech test for build a RESTful notification service using **Spring Boot**, integrating **MySQL**, **Redis**, and **RocketMQ**.
 
 ---
@@ -148,7 +148,7 @@ RocketMQ Console	8088
 To start the services:
 
 ```commandline
-docker-compose up -d
+cd envSetup/ && docker-compose up -d
 ```
 
 MySQL credentials:
