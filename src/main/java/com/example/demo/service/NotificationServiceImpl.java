@@ -11,7 +11,6 @@ import com.example.demo.repository.NotificationRepository;
 import com.example.demo.util.RedisUtil;
 import lombok.RequiredArgsConstructor;
 import org.apache.commons.collections.CollectionUtils;
-import org.apache.rocketmq.common.filter.impl.Op;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -156,6 +155,37 @@ public class NotificationServiceImpl implements NotificationService {
             return updatedNotification;
         });
     }
+
+    @Override
+    @Transactional
+    public boolean deleteNotification(Long id) {
+        // get from DB
+        Optional<Notifications> dbNotification = notificationRepository.findNotificationAndLockById(id);
+        if (dbNotification.isEmpty()) {
+            return false;
+        }
+
+        // delete
+        notificationRepository.deleteById(id);
+
+        // check if DB committed then clean cache
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                // clean whole recent list cache
+                redisUtil.clearRecentList();
+
+                // clean single cache in case of race condition
+                redisUtil.deleteNotification(id);
+
+                // .MD not listed, push to MQ to align local and remote system
+                notificationProducer.sendNotification(toMessage(dbNotification.get(), NotificationMessageType.DELETE));
+            }
+        });
+
+        return true;
+    }
+
     private NotificationMessage toMessage(Notifications notification, NotificationMessageType messageType) {
         return NotificationMessage.builder()
                 .id(notification.getId())

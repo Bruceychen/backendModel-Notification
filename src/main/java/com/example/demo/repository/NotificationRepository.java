@@ -16,6 +16,6 @@ public interface NotificationRepository extends JpaRepository<Notifications, Lon
     List<Notifications> findTop10ByOrderByCreatedAtDesc(Pageable pageable);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
-    @Query("select n from Notifications n WHERE n.id = :id")
+    @Query("SELECT n FROM Notifications n WHERE n.id = :id")
     Optional<Notifications> findNotificationAndLockById(Long id);
 }

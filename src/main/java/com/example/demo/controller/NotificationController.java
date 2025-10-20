@@ -43,8 +43,8 @@ public class NotificationController {
 
     @GetMapping("/recent")
     public ResponseEntity<List<NotificationResponse>> getRecentNotifications() {
-        List<Notifications> recentNoti = notificationService.getRecentNotifications();
-        List<NotificationResponse> response =  recentNoti.stream()
+        List<Notifications> recentNotifications = notificationService.getRecentNotifications();
+        List<NotificationResponse> response = recentNotifications.stream()
                 .map(NotificationResponse::fromEntity)
                 .collect(Collectors.toList());
         return ResponseEntity.ok(response);
@@ -63,7 +63,14 @@ public class NotificationController {
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<?> deleteNotification(@PathVariable Long id){
-        return null;
+    public ResponseEntity<?> deleteNotification(@PathVariable Long id) {
+        boolean deleted = notificationService.deleteNotification(id);
+        if (deleted) {
+            return ResponseEntity.noContent().build();
+        } else {
+            Map<String, String> errorResponse = new HashMap<>();
+            errorResponse.put("message", "data is not existed");
+            return new ResponseEntity<>(errorResponse, HttpStatus.NOT_FOUND);
+        }
     }
 }

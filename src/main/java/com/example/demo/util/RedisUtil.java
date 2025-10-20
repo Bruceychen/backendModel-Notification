@@ -2,10 +2,11 @@ package com.example.demo.util;
 
 import com.example.demo.config.AppProperties;
 import com.example.demo.model.Notifications;
-import lombok.RequiredArgsConstructor;import org.apache.commons.collections.CollectionUtils;
+import lombok.RequiredArgsConstructor;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.ZSetOperations;
 import org.springframework.stereotype.Component;
+import org.apache.commons.collections.CollectionUtils;
 
 import java.time.Duration;
 import java.time.ZoneOffset;
