@@ -51,11 +51,18 @@ public class NotificationController {
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<?> updateNotification(@PathVariable Long id, @RequestBody UpdateNotificationRequest request){
-        return null;
+    public ResponseEntity<?> updateNotification(@PathVariable Long id, @RequestBody UpdateNotificationRequest request) {
+        Optional<Notifications> updatedNotification = notificationService.updateNotification(id, request);
+        if (updatedNotification.isPresent()) {
+            return ResponseEntity.ok(NotificationResponse.fromEntity(updatedNotification.get()));
+        } else {
+            Map<String, String> errorResponse = new HashMap<>();
+            errorResponse.put("message", "data is not existed");
+            return new ResponseEntity<>(errorResponse, HttpStatus.NOT_FOUND);
+        }
     }
 
-    @DeleteMapping("{id}")
+    @DeleteMapping("/{id}")
     public ResponseEntity<?> deleteNotification(@PathVariable Long id){
         return null;
     }

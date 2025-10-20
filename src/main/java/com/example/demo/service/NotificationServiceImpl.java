@@ -2,6 +2,7 @@ package com.example.demo.service;
 
 import com.example.demo.dto.NotificationMessage;
 import com.example.demo.dto.NotificationRequest;
+import com.example.demo.dto.UpdateNotificationRequest;
 import com.example.demo.enums.NotificationMessageType;
 import com.example.demo.enums.NotificationType;
 import com.example.demo.model.Notifications;
@@ -127,6 +128,33 @@ public class NotificationServiceImpl implements NotificationService {
             // return if success or return empty list
             return Optional.ofNullable(retryNotifications).orElse(Collections.emptyList());
         }
+    }
+
+    @Override
+    @Transactional
+    public Optional<Notifications> updateNotification(Long id, UpdateNotificationRequest request) {
+        return notificationRepository.findNotificationAndLockById(id).map( notifications -> {
+            notifications.setSubject(request.getSubject());
+            notifications.setContent(request.getContent());
+            Notifications updatedNotification = notificationRepository.save(notifications);
+
+            // register (check DB success and clean cache)
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    // clean whole recent list
+                    redisUtil.clearRecentList();
+
+                    // clean single cache in case duplicated
+                    redisUtil.deleteNotification(id);
+
+                    // MD not mentioned, but still push to MQ
+                    notificationProducer.sendNotification(toMessage(updatedNotification, NotificationMessageType.UPDATE));
+                }
+            });
+
+            return updatedNotification;
+        });
     }
     private NotificationMessage toMessage(Notifications notification, NotificationMessageType messageType) {
         return NotificationMessage.builder()

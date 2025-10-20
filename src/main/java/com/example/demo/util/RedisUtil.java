@@ -79,6 +79,10 @@ public class RedisUtil {
         redisTemplate.opsForZSet().removeRange(recentListKey, 0, -11);
     }
 
+    public void deleteNotification(Long id) {
+        String key = appProperties.getRedis().getNotificationKeyPrefix() + id;
+        redisTemplate.delete(key);
+    }
     public void clearRecentList() {
         String recentListKey = appProperties.getRedis().getRecentListKey();
         redisTemplate.delete(recentListKey);
