@@ -3,11 +3,15 @@ package com.example.demo.service;
 import com.example.demo.dto.NotificationRequest;
 import com.example.demo.model.Notifications;
 
+import java.util.List;
 import java.util.Optional;
 
 public interface NotificationService {
+    Notifications createNotification(NotificationRequest request);
 
     Optional<Notifications> getNotificationById(Long id);
 
-    Notifications createNotification(NotificationRequest request);
+    List<Notifications> getRecentNotifications();
+
+
 }

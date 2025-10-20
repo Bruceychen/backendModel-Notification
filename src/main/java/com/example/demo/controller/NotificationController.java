@@ -14,6 +14,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/notifications")
@@ -27,6 +28,7 @@ public class NotificationController {
         Notifications createdNotification = notificationService.createNotification(request);
         return new ResponseEntity<>(NotificationResponse.fromEntity(createdNotification), HttpStatus.CREATED);
     }
+
     @GetMapping("/{id}")
     public ResponseEntity<?> getNotificationById(@PathVariable Long id){
         Optional<Notifications> notifications = notificationService.getNotificationById(id);
@@ -40,8 +42,12 @@ public class NotificationController {
     }
 
     @GetMapping("/recent")
-    public ResponseEntity<List<NotificationResponse>> getRecentNotifications(){
-        return null;
+    public ResponseEntity<List<NotificationResponse>> getRecentNotifications() {
+        List<Notifications> recentNoti = notificationService.getRecentNotifications();
+        List<NotificationResponse> response =  recentNoti.stream()
+                .map(NotificationResponse::fromEntity)
+                .collect(Collectors.toList());
+        return ResponseEntity.ok(response);
     }
 
     @PutMapping("/{id}")
