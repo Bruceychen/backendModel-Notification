@@ -1,0 +1,28 @@
+server:
+  port: 8090
+
+database:
+  host: localhost
+  port: 3306
+  username: taskuser
+  password: taskpass
+  database: taskdb
+
+redis:
+  host: localhost
+  port: 6379
+  db: 0
+
+rocketmq:
+  name_servers:
+    - "127.0.0.1:9876"
+  producer_group: notification_producer_group
+  consumer_group: notification_consumer_group
+  send_timeout: 10000  # milliseconds
+  retry_times: 3
+
+app:
+  notification_topic: notification-topic
+  recent_list_key: "recent_notifications"
+  notification_key_prefix: "notification:"
+  cache_ttl_minutes: 10
