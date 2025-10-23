@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GraphQL Playground - Notification Service</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            height: 100vh;
+            background: #f5f5f5;
+        }
+
+        .container {
+            display: flex;
+            width: 100%;
+        }
+
+        .left-panel {
+            width: 50%;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .right-panel {
+            width: 50%;
+            padding: 20px;
+            background: white;
+            display: flex;
+            flex-direction: column;
+        }
+
+        h1 {
+            margin-top: 0;
+            color: #e10098;
+        }
+
+        h2 {
+            color: #333;
+            font-size: 16px;
+            margin-top: 0;
+        }
+
+        textarea {
+            flex: 1;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            margin-bottom: 10px;
+            resize: none;
+        }
+
+        button {
+            background: #e10098;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        button:hover {
+            background: #c5008a;
+        }
+
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+
+        pre {
+            background: #f8f8f8;
+            padding: 15px;
+            border-radius: 4px;
+            overflow: auto;
+            flex: 1;
+            margin: 0;
+            font-size: 13px;
+            border: 1px solid #e0e0e0;
+        }
+
+        .examples {
+            margin-top: 20px;
+        }
+
+        .example-btn {
+            background: #4CAF50;
+            margin: 5px;
+            padding: 8px 16px;
+            font-size: 12px;
+        }
+
+        .example-btn:hover {
+            background: #45a049;
+        }
+
+        .endpoint {
+            background: #333;
+            color: white;
+            padding: 8px 12px;
+            border-radius: 4px;
+            margin-bottom: 15px;
+            font-family: monospace;
+        }
+
+        .loading {
+            color: #e10098;
+            font-style: italic;
+        }
+
+        .error {
+            color: #d32f2f;
+        }
+
+        .success {
+            color: #4CAF50;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="left-panel">
+            <h1>GraphQL Playground</h1>
+            <div class="endpoint">Endpoint: http://localhost:8090/graphql</div>
+
+            <h2>Query / Mutation</h2>
+            <textarea id="query" placeholder="Enter your GraphQL query or mutation here...">query {
+  recentNotifications {
+    id
+    type
+    recipient
+    subject
+    content
+    createdAt
+  }
+}</textarea>
+
+            <h2>Variables (JSON)</h2>
+            <textarea id="variables" placeholder='{"id": "1"}' rows="5">{}</textarea>
+
+            <button id="executeBtn" onclick="executeQuery()">Execute Query</button>
+
+            <div class="examples">
+                <h2>Quick Examples:</h2>
+                <button class="example-btn" onclick="loadExample('recent')">Get Recent</button>
+                <button class="example-btn" onclick="loadExample('getOne')">Get By ID</button>
+                <button class="example-btn" onclick="loadExample('create')">Create</button>
+                <button class="example-btn" onclick="loadExample('update')">Update</button>
+                <button class="example-btn" onclick="loadExample('delete')">Delete</button>
+            </div>
+        </div>
+
+        <div class="right-panel">
+            <h2>Response</h2>
+            <pre id="response">Execute a query to see the response here...</pre>
+        </div>
+    </div>
+
+    <script>
+        const examples = {
+            recent: {
+                query: `query GetRecentNotifications {
+  recentNotifications {
+    id
+    type
+    recipient
+    subject
+    content
+    createdAt
+  }
+}`,
+                variables: {}
+            },
+            getOne: {
+                query: `query GetNotification($id: ID!) {
+  notification(id: $id) {
+    id
+    type
+    recipient
+    subject
+    content
+    createdAt
+  }
+}`,
+                variables: { id: "1" }
+            },
+            create: {
+                query: `mutation CreateNotification($input: NotificationInput!) {
+  createNotification(input: $input) {
+    id
+    type
+    recipient
+    subject
+    content
+    createdAt
+  }
+}`,
+                variables: {
+                    input: {
+                        type: "EMAIL",
+                        recipient: "test@example.com",
+                        subject: "Test Notification",
+                        content: "This is a test notification created via GraphQL"
+                    }
+                }
+            },
+            update: {
+                query: `mutation UpdateNotification($id: ID!, $input: UpdateNotificationInput!) {
+  updateNotification(id: $id, input: $input) {
+    id
+    type
+    recipient
+    subject
+    content
+    createdAt
+  }
+}`,
+                variables: {
+                    id: "1",
+                    input: {
+                        subject: "Updated Subject",
+                        content: "Updated content via GraphQL"
+                    }
+                }
+            },
+            delete: {
+                query: `mutation DeleteNotification($id: ID!) {
+  deleteNotification(id: $id)
+}`,
+                variables: { id: "1" }
+            }
+        };
+
+        function loadExample(exampleName) {
+            const example = examples[exampleName];
+            document.getElementById('query').value = example.query;
+            document.getElementById('variables').value = JSON.stringify(example.variables, null, 2);
+        }
+
+        async function executeQuery() {
+            const queryText = document.getElementById('query').value;
+            const variablesText = document.getElementById('variables').value;
+            const responseEl = document.getElementById('response');
+            const executeBtn = document.getElementById('executeBtn');
+
+            let variables;
+            try {
+                variables = variablesText.trim() ? JSON.parse(variablesText) : {};
+            } catch (e) {
+                responseEl.textContent = 'Error: Invalid JSON in variables\n\n' + e.message;
+                responseEl.className = 'error';
+                return;
+            }
+
+            executeBtn.disabled = true;
+            responseEl.textContent = 'Executing query...';
+            responseEl.className = 'loading';
+
+            try {
+                const response = await fetch('http://localhost:8090/graphql', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        query: queryText,
+                        variables: variables
+                    })
+                });
+
+                const result = await response.json();
+                responseEl.textContent = JSON.stringify(result, null, 2);
+
+                if (result.errors) {
+                    responseEl.className = 'error';
+                } else {
+                    responseEl.className = 'success';
+                }
+            } catch (error) {
+                responseEl.textContent = 'Network Error:\n\n' + error.message +
+                    '\n\nMake sure the application is running on http://localhost:8090';
+                responseEl.className = 'error';
+            } finally {
+                executeBtn.disabled = false;
+            }
+        }
+
+        // Allow Ctrl+Enter to execute
+        document.getElementById('query').addEventListener('keydown', function(e) {
+            if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+                executeQuery();
+            }
+        });
+    </script>
+</body>
+</html>

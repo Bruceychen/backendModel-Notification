@@ -1,0 +1,55 @@
+# GraphQL Schema for Notification Service
+
+# Notification Type Enum
+enum NotificationType {
+    EMAIL
+    SMS
+}
+
+# Notification Type Definition
+type Notification {
+    id: ID!
+    type: NotificationType!
+    recipient: String!
+    subject: String!
+    content: String!
+    createdAt: String!
+}
+
+# Input type for creating a notification
+input NotificationInput {
+    type: NotificationType!
+    recipient: String!
+    subject: String!
+    content: String!
+}
+
+# Input type for updating a notification
+input UpdateNotificationInput {
+    subject: String
+    content: String
+}
+
+# Query operations
+type Query {
+    # Get a notification by ID
+    notification(id: ID!): Notification
+
+    # Get recent notifications (top 10)
+    recentNotifications: [Notification!]!
+
+    # Get all notifications (optional pagination)
+    allNotifications(limit: Int, offset: Int): [Notification!]!
+}
+
+# Mutation operations
+type Mutation {
+    # Create a new notification
+    createNotification(input: NotificationInput!): Notification!
+
+    # Update an existing notification
+    updateNotification(id: ID!, input: UpdateNotificationInput!): Notification
+
+    # Delete a notification
+    deleteNotification(id: ID!): Boolean!
+}
