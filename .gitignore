@@ -232,4 +232,44 @@ frontend/yarn-error.log*
 frontend/package-lock.json
 database_sample/docker/data
 
-CLAUDE.md
+# ==============================================================================
+# Go-specific ignores (added for Go refactoring)
+# ==============================================================================
+
+# Binaries for programs and plugins
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+notification-service
+dist/
+
+# Test binary, built with `go test -c`
+*.test
+
+# Output of the go coverage tool
+*.out
+coverage.html
+coverage.out
+
+# Go workspace file
+go.work
+go.work.sum
+
+# Dependency directories (don't ignore vendor if you use it)
+# vendor/
+
+# Temporary files
+.gitignore.go
+
+# Application logs
+*.log
+
+# ==============================================================================
+# NOTE: Files that SHOULD be committed:
+# - go.mod (defines Go dependencies)
+# - go.sum (dependency checksums, like package-lock.json)
+# - config.yaml (if it contains no secrets)
+# - .vscode/settings.json, launch.json, extensions.json (for team consistency)
+# ==============================================================================
